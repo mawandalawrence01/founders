@@ -156,13 +156,15 @@ export default function StoryViewer({ story, initialIndex = 0, onClose }: StoryV
   // Handle video events
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
+    if (!v || current.type !== 'video') return;
 
     const onLoadedMeta = () => {
       setLoaded(true);
       if (!isPaused) {
         v.currentTime = elapsedRef.current / 1000;
-        v.play().catch(() => {});
+        v.play().catch((err) => {
+          console.log('Video play failed:', err);
+        });
       }
     };
 
@@ -175,16 +177,31 @@ export default function StoryViewer({ story, initialIndex = 0, onClose }: StoryV
       advance(1);
     };
 
+    const onError = () => {
+      console.error('Video load error');
+      setLoaded(true);
+      // Skip to next on error
+      setTimeout(() => advance(1), 500);
+    };
+
     v.addEventListener('loadedmetadata', onLoadedMeta);
     v.addEventListener('timeupdate', onTimeUpdate);
     v.addEventListener('ended', onEnded);
+    v.addEventListener('error', onError);
+
+    // Trigger load if src is already set
+    if (v.src && v.readyState >= 1) {
+      setLoaded(true);
+      v.play().catch((err) => console.log('Auto-play failed:', err));
+    }
 
     return () => {
       v.removeEventListener('loadedmetadata', onLoadedMeta);
       v.removeEventListener('timeupdate', onTimeUpdate);
       v.removeEventListener('ended', onEnded);
+      v.removeEventListener('error', onError);
     };
-  }, [advance, isPaused, index]);
+  }, [advance, isPaused, current.type]);
 
   // Start item when index changes
   useEffect(() => {
@@ -372,9 +389,10 @@ export default function StoryViewer({ story, initialIndex = 0, onClose }: StoryV
               src={current.src}
               className="max-w-full max-h-full object-contain"
               playsInline
+              autoPlay
               controls={false}
               muted={false}
-              preload="metadata"
+              preload="auto"
               style={{ outline: 'none' }}
             />
           )}
